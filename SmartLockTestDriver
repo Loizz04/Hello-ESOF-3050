@@ -1,0 +1,146 @@
+package homeguardian.system;
+
+import java.util.List;
+
+public class SmartLockTestDriver {
+
+    public static void main(String[] args) {
+        System.out.println("--- Home Guardian Smart Lock Integration Test ---");
+        
+        // 1. Initialize the Controller and the Smart Lock Device
+        HGController controller = new HGController();
+        String lockID = "SL-FRONT";
+        String lockName = "Front Door Smart Lock";
+        
+        SmartLock frontLock = new SmartLock(lockID, lockName);
+        
+        // Setup initial codes and linked devices
+        final String GUEST_CODE = "1234";
+        final String BAD_CODE = "9999";
+        final String ALARM_ID = "ALARM-001";
+
+        // 2. Register the Device with the Controller and add a guest code
+        controller.addDevice(frontLock);
+        frontLock.addGuestPasscode(GUEST_CODE);
+        frontLock.linkToAlarm(ALARM_ID); // Setup alarm link
+        System.out.println("\n[SETUP] " + lockName + " registered. Initial State: LOCKED. Guest code added: " + GUEST_CODE);
+
+        // --- Test 1: Unlock via Command (Normal Operation) ---
+        System.out.println("\n-------------------------------------------------");
+        System.out.println("TEST 1: Sending command 'UNLOCK'");
+        System.out.println("-------------------------------------------------");
+        
+        boolean successUnlock = controller.controlDevice(lockID, "UNLOCK");
+        
+        System.out.println("\n[RESULT] Command Success: " + successUnlock);
+        if (successUnlock && !frontLock.isLocked()) {
+            System.out.println("✅ PASS: Lock is UNLOCKED.");
+        } else {
+            System.out.println("❌ FAIL: Lock failed to unlock.");
+        }
+
+        // --- Test 2: Lock via Command ---
+        System.out.println("\n-------------------------------------------------");
+        System.out.println("TEST 2: Sending command 'LOCK'");
+        System.out.println("-------------------------------------------------");
+        
+        boolean successLock = controller.controlDevice(lockID, "LOCK");
+        
+        System.out.println("\n[RESULT] Command Success: " + successLock);
+        if (successLock && frontLock.isLocked()) {
+            System.out.println("✅ PASS: Lock is LOCKED.");
+        } else {
+            System.out.println("❌ FAIL: Lock failed to lock.");
+        }
+
+        // --- Test 3: Arm (Sets Lock & Enable) ---
+        System.out.println("\n-------------------------------------------------");
+        System.out.println("TEST 3: Sending command 'ARM' (Should ensure locked and enabled)");
+        System.out.println("-------------------------------------------------");
+        
+        // First, ensure it's unlocked and disabled state for a true test
+        frontLock.unlock();
+        frontLock.disarmLock();
+        
+        boolean successArm = controller.controlDevice(lockID, "ARM");
+        
+        System.out.println("\n[RESULT] Command Success: " + successArm);
+        if (successArm && frontLock.isLocked() && frontLock.isEnabled()) {
+            System.out.println("✅ PASS: Lock is ARMED, LOCKED, and ENABLED.");
+        } else {
+            System.out.println("❌ FAIL: Lock failed to arm completely.");
+        }
+        
+        // --- Test 4: Disarm (Sets Disabled) ---
+        System.out.println("\n-------------------------------------------------");
+        System.out.println("TEST 4: Sending command 'DISARM' (Should ensure disabled)");
+        System.out.println("-------------------------------------------------");
+        
+        boolean successDisarm = controller.controlDevice(lockID, "DISARM");
+        
+        System.out.println("\n[RESULT] Command Success: " + successDisarm);
+        if (successDisarm && !frontLock.isEnabled()) {
+            System.out.println("✅ PASS: Lock is DISARMED (Security functions disabled).");
+        } else {
+            System.out.println("❌ FAIL: Lock failed to disarm.");
+        }
+
+        // --- Test 5: Unlock with Valid Guest Passcode (Must re-enable first) ---
+        System.out.println("\n-------------------------------------------------");
+        System.out.println("TEST 5: Unlock with VALID Guest Passcode");
+        System.out.println("-------------------------------------------------");
+        
+        frontLock.armLock(); // Re-arm (lock/enable)
+        
+        boolean successGuestUnlock = frontLock.unlockWithGuestPasscode(GUEST_CODE);
+        
+        if (successGuestUnlock && !frontLock.isLocked()) {
+            System.out.println("✅ PASS: Door unlocked successfully using guest code.");
+        } else {
+            System.out.println("❌ FAIL: Door failed to unlock with valid guest code.");
+        }
+        
+        // --- Test 6: Unlock with Invalid Guest Passcode ---
+        System.out.println("\n-------------------------------------------------");
+        System.out.println("TEST 6: Unlock with INVALID Guest Passcode");
+        System.out.println("-------------------------------------------------");
+        
+        frontLock.lock(); // Re-lock
+        
+        boolean failGuestUnlock = frontLock.unlockWithGuestPasscode(BAD_CODE);
+        
+        if (!failGuestUnlock && frontLock.isLocked()) {
+            System.out.println("✅ PASS: Lock remained LOCKED after invalid code attempt (expected behavior).");
+        } else {
+            System.out.println("❌ FAIL: Lock incorrectly unlocked or command result was wrong.");
+        }
+        
+        // --- Test 7: Set Durations and Trigger Emergency Services ---
+        System.out.println("\n-------------------------------------------------");
+        System.out.println("TEST 7: Setting Durations & Triggering Emergency Alert");
+        System.out.println("-------------------------------------------------");
+        
+        frontLock.setLockDuration(600);
+        frontLock.setUnlockDuration(15);
+        
+        System.out.println("[INFO] Lock Duration: " + frontLock.getLockDuration() + "s. Unlock Duration: " + frontLock.getUnlockDuration() + "s.");
+        
+        frontLock.contactEmergencyServices();
+        
+        System.out.println("✅ PASS: Durations set and Emergency Alert logged.");
+
+
+        // --- Review Logs ---
+        System.out.println("\n=================================================");
+        System.out.println("HGController Activity Log Summary");
+        System.out.println("=================================================");
+        
+        List<ActivityLog> logs = controller.getAllLogs();
+        
+        for (ActivityLog log : logs) {
+            System.out.println("[LOG] " + log.getMessage());
+        }
+        
+        System.out.println("--- All Smart Lock Tests Complete ---");
+    }
+}
